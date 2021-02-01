@@ -1,236 +1,271 @@
 <template>
-  <v-container>
-  <v-row class="fill-height">
+  <v-row>
     <v-col>
+      
+     
+      <v-dialog v-model="dialog" max-width="500">
+        <v-card>
+          <v-container>
+            <v-form @submit.prevent="addEvent">
+              <v-text-field v-model="name" type="text" label="title"></v-text-field>
+              <v-text-field v-model="details" type="text" label="patient name"></v-text-field>
+              <v-text-field v-model="start" type="datetime-local" label="start"></v-text-field>
+              <v-text-field v-model="end" type="datetime-local" label="end"></v-text-field>
+              <v-text-field v-model="color" label="color"></v-text-field>
+              <v-btn type="submit" color="success" class="mr-4" @click.stop="dialog = false">
+                submit
+              </v-btn>
+            </v-form>
+          </v-container>
+        </v-card>
+      </v-dialog>
+
+      <v-sheet height="64">
+        <v-toolbar
+          flat
+        >
+          <v-btn
+            fab
+            text
+            small
+            color="grey darken-2"
+            @click="prev"
+          >
+            <v-icon small>
+              mdi-chevron-left
+            </v-icon>
+          </v-btn>
+          <v-btn
+            fab
+            text
+            small
+            color="grey darken-2"
+            @click="next"
+          >
+            <v-icon small>
+              mdi-chevron-right
+            </v-icon>
+          </v-btn>
+          <!-- <v-toolbar-title v-if="$refs.calendar">
+            {{ $refs.calendar.title }}
+          </v-toolbar-title> -->
+           <v-btn
+            color="primary"
+            style="margin:20px"
+            dark
+            @click.stop="dialog = true"
+          >
+            Add new appointment
+          </v-btn>
+
+        </v-toolbar>
+      </v-sheet>
+
       <v-sheet height="600">
         <v-calendar
           ref="calendar"
-          v-model="value"
+          :now="today"
+          :value="today"
+          :events="events"
           color="primary"
           type="week"
-          :events="events"
+          :weekdays="[ 1, 2, 3, 4, 5]"
+          :event-overlap-threshold="30"
           :event-color="getEventColor"
-          :event-ripple="false"
-          @change="getEvents"
-          @mousedown:event="startDrag"
-          @mousedown:time="startTime"
-          @mousemove:time="mouseMove"
-          @mouseup:time="endDrag"
-          @mouseleave.native="cancelDrag"
-        > 
+          v-model="focus"
+          @click:event="showEvent"
+          @click:more="viewDay"
+          @click:date="viewDay"
+          @change="updateRange"
 
-          <template v-slot:event="{ event, timed }">
-            <div
-              class="v-event-draggable"
-              v-html="customEventSummary(event)"
-            ></div>
-            <div
-              v-if="timed"
-              class="v-event-drag-bottom"
-              @mousedown.stop="extendBottom(event)"
-            ></div>
-          </template>
-
-        </v-calendar>
+        ></v-calendar>
+         <v-menu
+          v-model="selectedOpen"
+          :close-on-content-click="false"
+          :activator="selectedElement"
+          offset-x
+        >
+          <v-card
+            color="grey lighten-4"
+            min-width="350px"
+            flat
+          >
+            <v-toolbar
+              :color="selectedEvent.color"
+              dark
+            >
+              <v-btn icon>
+                <v-icon>mdi-pencil</v-icon>
+              </v-btn>
+              <v-toolbar-title v-html="selectedEvent.name"></v-toolbar-title>
+              <v-spacer></v-spacer>
+              <v-btn icon>
+                <v-icon>mdi-heart</v-icon>
+              </v-btn>
+              <v-btn icon>
+                <v-icon>mdi-dots-vertical</v-icon>
+              </v-btn>
+            </v-toolbar>
+            <v-card-text>
+              <span v-html="selectedEvent.details"></span>
+            </v-card-text>
+            <v-card-actions>
+              <v-btn
+                text
+                color="secondary"
+                @click="selectedOpen = false"
+              >
+                Cancel
+              </v-btn>
+            </v-card-actions>
+          </v-card>
+        </v-menu>
       </v-sheet>
     </v-col>
- 
   </v-row>
- 
-  </v-container>
-  
 </template>
-<style scoped lang="scss">
-.v-event-draggable {
-  padding-left: 6px;
-}
 
-.v-event-timed {
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-.v-event-drag-bottom {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 4px;
-  height: 4px;
-  cursor: ns-resize;
-
-  &::after {
-    display: none;
-    position: absolute;
-    left: 50%;
-    height: 4px;
-    border-top: 1px solid white;
-    border-bottom: 1px solid white;
-    width: 16px;
-    margin-left: -8px;
-    opacity: 0.8;
-    content: '';
-  }
-
-  &:hover::after {
-    display: block;
-  }
-}
-</style>
 <script>
+
   export default {
     data: () => ({
-      value: '',
-      events: [],
-      colors: ['#2196F3', '#3F51B5', '#673AB7', '#00BCD4', '#4CAF50', '#FF9800', '#757575'],
-      names: ['Meeting', 'Holiday', 'PTO', 'Travel', 'Event', 'Birthday', 'Conference', 'Party'],
-      dragEvent: null,
-      dragStart: null,
-      createEvent: null,
-      createStart: null,
-      extendOriginal: null,
+      focus: '',
+      name: null,
+      details: null,
+      start: null,
+      end: null,
+      color: null,
+      selectedEvent: {},
+      selectedElement: null,
+      selectedOpen: false,
+      today: new Date().toISOString().slice(0, 10),
+      events: [
+        {
+          name: 'Afpsraak met Sinan',
+          start: '2021-02-02 10:00',
+          end: '2021-02-02 11:30',
+          color: 'blue',
+          details: 'Patient001',
+        },{
+          name: 'Afpsraak met Topicus',
+          start: '2021-02-03 14:00',
+          end: '2021-02-03 15:00',
+          color: 'green',
+          details: 'Patient002',
+        }
+      ],
+      dialog: false,
     }),
+    mounted () {
+      this.$refs.calendar.scrollToTime('08:00')
+    },
+    computed: {
+      title () {
+        const { start, end } = this
+        if (!start || !end) {
+          return ''
+        }
+        const startMonth = this.monthFormatter(start)
+        const endMonth = this.monthFormatter(end)
+        const suffixMonth = startMonth === endMonth ? '' : endMonth
+        const startYear = start.year
+        const endYear = end.year
+        const suffixYear = startYear === endYear ? '' : endYear
+        const startDay = start.day + this.nth(start.day)
+        const endDay = end.day + this.nth(end.day)
+        switch (this.type) {
+          case 'month':
+            return `${startMonth} ${startYear}`
+          case 'week':
+          case '4day':
+            return `${startMonth} ${startDay} ${startYear} - ${suffixMonth} ${endDay} ${suffixYear}`
+          case 'day':
+            return `${startMonth} ${startDay} ${startYear}`
+        }
+        return ''
+      },
+      monthFormatter () {
+        return this.$refs.calendar.getFormatter({
+          timeZone: 'UTC', month: 'long',
+        })
+      },
+    },
     methods: {
-      startDrag ({ event, timed }) {
-        if (event && timed) {
-          this.dragEvent = event
-          this.dragTime = null
-          this.extendOriginal = null
-        }
-      },
-
-      startTime (tms) {
-        const mouse = this.toTime(tms)
-
-        if (this.dragEvent && this.dragTime === null) {
-          const start = this.dragEvent.start
-
-          this.dragTime = mouse - start
-        } else {
-          this.createStart = this.roundTime(mouse)
-          this.createEvent = {
-            name: `Event #${this.events.length}`,
-            category: 'patient',
-            color: this.rndElement(this.colors),
-            start: this.createStart,
-            end: this.createStart,
-            timed: true,
-          }
-
-          this.events.push(this.createEvent)
-        }
-      },
-      customEventSummary(event){
-        return event.name;
-      },
-      extendBottom (event) {
-        this.createEvent = event
-        this.createStart = event.start
-        this.extendOriginal = event.end
-      },
-      mouseMove (tms) {
-        const mouse = this.toTime(tms)
-
-        if (this.dragEvent && this.dragTime !== null) {
-          const start = this.dragEvent.start
-          const end = this.dragEvent.end
-          const duration = end - start
-          const newStartTime = mouse - this.dragTime
-          const newStart = this.roundTime(newStartTime)
-          const newEnd = newStart + duration
-
-          this.dragEvent.start = newStart
-          this.dragEvent.end = newEnd
-        } else if (this.createEvent && this.createStart !== null) {
-          const mouseRounded = this.roundTime(mouse, false)
-          const min = Math.min(mouseRounded, this.createStart)
-          const max = Math.max(mouseRounded, this.createStart)
-
-          this.createEvent.start = min
-          this.createEvent.end = max
-        }
-      },
-      endDrag () {
-        this.dragTime = null
-        this.dragEvent = null
-        this.createEvent = null
-        this.createStart = null
-        this.extendOriginal = null
-      },
-      cancelDrag () {
-        if (this.createEvent) {
-          if (this.extendOriginal) {
-            this.createEvent.end = this.extendOriginal
-          } else {
-            const i = this.events.indexOf(this.createEvent)
-            if (i !== -1) {
-              this.events.splice(i, 1)
-            }
-          }
-        }
-
-        this.createEvent = null
-        this.createStart = null
-        this.dragTime = null
-        this.dragEvent = null
-      },
-      roundTime (time, down = true) {
-        const roundTo = 15 // minutes
-        const roundDownTime = roundTo * 60 * 1000
-
-        return down
-          ? time - time % roundDownTime
-          : time + (roundDownTime - (time % roundDownTime))
-      },
-      toTime (tms) {
-        return new Date(tms.year, tms.month - 1, tms.day, tms.hour, tms.minute).getTime()
+      viewDay ({ date }) {
+        this.focus = date
+        this.type = 'day'
       },
       getEventColor (event) {
-        const rgb = parseInt(event.color.substring(1), 16)
-        const r = (rgb >> 16) & 0xFF
-        const g = (rgb >> 8) & 0xFF
-        const b = (rgb >> 0) & 0xFF
-
-        return event === this.dragEvent
-          ? `rgba(${r}, ${g}, ${b}, 0.7)`
-          : event === this.createEvent
-            ? `rgba(${r}, ${g}, ${b}, 0.7)`
-            : event.color
+        return event.color
       },
-
-      // getEvents ({ start, end }) {
-      //   const events = []
-
-      //   const min = new Date(`${start.date}T00:00:00`).getTime()
-      //   const max = new Date(`${end.date}T23:59:59`).getTime()
-      //   const days = (max - min) / 86400000
-      //   const eventCount = this.rnd(days, days + 20)
-
-      //   for (let i = 0; i < eventCount; i++) {
-      //     const timed = this.rnd(0, 3) !== 0
-      //     const firstTimestamp = this.rnd(min, max)
-      //     const secondTimestamp = this.rnd(2, timed ? 8 : 288) * 900000
-      //     const start = firstTimestamp - (firstTimestamp % 900000)
-      //     const end = start + secondTimestamp
-
-      //     events.push({
-      //       name: this.rndElement(this.names),
-      //       color: this.rndElement(this.colors),
-      //       start,
-      //       end,
-      //       timed,
-      //     })
-      //   }
-
-      //   this.events = events
-      // },
-
-      rnd (a, b) {
-        return Math.floor((b - a + 1) * Math.random()) + a
+      setToday () {
+        this.focus = this.today
       },
-      rndElement (arr) {
-        return arr[this.rnd(0, arr.length - 1)]
+      prev () {
+        this.$refs.calendar.prev()
+      },
+      next () {
+        this.$refs.calendar.next()
+      },
+      async addEvent () {
+        this.start = await new Date(this.start).toISOString().substring(0,16)
+        this.end =  await new Date(this.end).toISOString().substring(0,16)
+                  this.events.push({name: this.name,
+                              details: this.details,
+                              start: this.start,
+                              end: this.end,
+                             color: this.color})
+
+      },
+      showEvent ({ nativeEvent, event }) {
+        const open = () => {
+          this.selectedEvent = event
+          this.selectedElement = nativeEvent.target
+          setTimeout(() => this.selectedOpen = true, 10)
+        }
+        if (this.selectedOpen) {
+          this.selectedOpen = false
+          setTimeout(open, 10)
+        } else {
+          open()
+        }
+        nativeEvent.stopPropagation()
+      },
+      updateRange ({ start, end }) {
+        // You could load events from an outside source (like database) now that we have the start and end dates on the calendar
+        this.start = start
+        this.end = end
+      },
+      nth (d) {
+        return d > 3 && d < 21
+          ? 'th'
+          : ['th', 'st', 'nd', 'rd', 'th', 'th', 'th', 'th', 'th', 'th'][d % 10]
       },
     },
   }
 </script>
 
+<style scoped>
+.my-event {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: 2px;
+  background-color: #1867c0;
+  color: #ffffff;
+  border: 1px solid #1867c0;
+  font-size: 12px;
+  padding: 3px;
+  cursor: pointer;
+  margin-bottom: 1px;
+  left: 4px;
+  margin-right: 8px;
+  position: relative;
+}
+
+.my-event.with-time {
+  position: absolute;
+  right: 4px;
+  margin-right: 0px;
+}
+</style>
